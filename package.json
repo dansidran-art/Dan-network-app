@@ -1,8 +1,13 @@
 {
-  "name": "my-cloudflare-app",
+  "name": "agrinetwork-app",
   "version": "1.0.0",
+  "private": true,
   "scripts": {
-    "dev": "wrangler dev --local backend/worker.js",
-    "deploy": "wrangler publish backend/worker.js"
+    "dev": "wrangler dev --local worker/index.js",
+    "deploy": "wrangler publish"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "wrangler": "^3.0.0"
   }
 }
