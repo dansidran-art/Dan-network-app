@@ -1,65 +1,118 @@
-import { Hono } from 'hono'
-import { jwt } from 'hono/jwt'
+import { Hono } from "hono";
+import { jwt } from "hono/jwt";
+import { drizzle } from "drizzle-orm/d1";
+import bcrypt from "bcryptjs";
 
-const app = new Hono()
+export default {
+  async fetch(request, env, ctx) {
+    const app = new Hono();
+    const db = drizzle(env.DB);
 
-// Middleware: Protect routes with JWT
-app.use('/api/*', async (c, next) => {
-  if (c.req.path.startsWith('/api/public')) {
-    return next()
-  }
-  const token = c.req.header('Authorization')?.replace('Bearer ', '')
-  if (!token) return c.json({ error: 'No token provided' }, 401)
+    // Middleware: JWT Auth
+    const auth = jwt({
+      secret: env.JWT_SECRET,
+    });
 
-  try {
-    const payload = await jwt.verify(token, c.env.JWT_SECRET)
-    c.set('user', payload)
-    await next()
-  } catch {
-    return c.json({ error: 'Invalid token' }, 401)
-  }
-})
+    // --- Signup ---
+    app.post("/signup", async (c) => {
+      const { name, email, password } = await c.req.json();
 
-// --- PUBLIC ROUTES --- //
-app.post('/api/public/signup', async (c) => {
-  const { name, email, password } = await c.req.json()
+      if (!name || !email || !password) {
+        return c.json({ error: "Missing fields" }, 400);
+      }
 
-  // insert into D1
-  await c.env.DB.prepare(
-    'INSERT INTO users (name, email, password) VALUES (?, ?, ?)'
-  ).bind(name, email, password).run()
+      const password_hash = await bcrypt.hash(password, 10);
 
-  return c.json({ message: 'User created successfully' })
-})
+      try {
+        await db.run(
+          `INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)`,
+          [name, email, password_hash]
+        );
+        return c.json({ message: "Signup successful ✅" });
+      } catch (e) {
+        return c.json({ error: "Email already exists" }, 400);
+      }
+    });
 
-app.post('/api/public/login', async (c) => {
-  const { email, password } = await c.req.json()
+    // --- Login ---
+    app.post("/login", async (c) => {
+      const { email, password } = await c.req.json();
 
-  const user = await c.env.DB.prepare(
-    'SELECT * FROM users WHERE email = ? AND password = ?'
-  ).bind(email, password).first()
+      const user = await db.get(
+        `SELECT * FROM users WHERE email = ? LIMIT 1`,
+        [email]
+      );
 
-  if (!user) return c.json({ error: 'Invalid credentials' }, 401)
+      if (!user) return c.json({ error: "User not found" }, 404);
 
-  const token = await jwt.sign({ id: user.id, email: user.email }, c.env.JWT_SECRET)
-  return c.json({ token })
-})
+      const valid = await bcrypt.compare(password, user.password_hash);
+      if (!valid) return c.json({ error: "Invalid password" }, 401);
 
-// --- PROTECTED ROUTES --- //
-app.get('/api/products', async (c) => {
-  const result = await c.env.DB.prepare('SELECT * FROM products').all()
-  return c.json(result.results)
-})
+      const token = await new SignJWT({ id: user.id, role: user.role })
+        .setProtectedHeader({ alg: "HS256" })
+        .setExpirationTime("7d")
+        .sign(new TextEncoder().encode(env.JWT_SECRET));
 
-app.post('/api/products', async (c) => {
-  const user = c.get('user')
-  const { name, price } = await c.req.json()
+      return c.json({ token, user });
+    });
 
-  await c.env.DB.prepare(
-    'INSERT INTO products (name, price, seller_id) VALUES (?, ?, ?)'
-  ).bind(name, price, user.id).run()
+    // --- Verify KYC ---
+    app.post("/kyc/verify", auth, async (c) => {
+      const user = c.get("jwtPayload");
 
-  return c.json({ message: 'Product added successfully' })
-})
+      await db.run(
+        `UPDATE users SET is_kyc_verified = 1 WHERE id = ?`,
+        [user.id]
+      );
 
-export default app
+      await db.run(
+        `INSERT INTO subaccounts (user_id, name) VALUES (?, ?)`,
+        [user.id, "Main Account"]
+      );
+
+      return c.json({ message: "KYC verified + subaccount created ✅" });
+    });
+
+    // --- List Product ---
+    app.post("/products", auth, async (c) => {
+      const user = c.get("jwtPayload");
+      const { name, description, price, quantity } = await c.req.json();
+
+      const u = await db.get(`SELECT * FROM users WHERE id = ?`, [user.id]);
+      if (!u.is_kyc_verified) {
+        return c.json({ error: "KYC required" }, 403);
+      }
+
+      await db.run(
+        `INSERT INTO products (user_id, name, description, price, quantity) VALUES (?, ?, ?, ?, ?)`,
+        [user.id, name, description, price, quantity]
+      );
+
+      return c.json({ message: "Product listed ✅" });
+    });
+
+    // --- Create Order ---
+    app.post("/orders", auth, async (c) => {
+      const buyer = c.get("jwtPayload");
+      const { product_id, quantity } = await c.req.json();
+
+      const product = await db.get(
+        `SELECT * FROM products WHERE id = ?`,
+        [product_id]
+      );
+
+      if (!product) return c.json({ error: "Product not found" }, 404);
+
+      const total_amount = product.price * quantity;
+
+      await db.run(
+        `INSERT INTO orders (buyer_id, product_id, quantity, total_amount, escrow_locked) VALUES (?, ?, ?, ?, ?)`,
+        [buyer.id, product_id, quantity, total_amount, 1]
+      );
+
+      return c.json({ message: "Order created & funds locked in escrow ✅" });
+    });
+
+    return app.fetch(request, env, ctx);
+  },
+};
