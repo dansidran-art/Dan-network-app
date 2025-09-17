@@ -1,11 +1,13 @@
-<!DOCTYPE html>
+<!-- frontend/index.html -->
+<!doctype html>
 <html>
   <head>
-    <title>Cloudflare Fullstack App</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AgriNetwork</title>
   </head>
   <body>
-    <h1>🚀 Cloudflare Fullstack Starter</h1>
-    <button onclick="fetch('/kv').then(r=>r.text()).then(alert)">Test KV</button>
-    <button onclick="fetch('/users').then(r=>r.json()).then(console.log)">Get Users</button>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
