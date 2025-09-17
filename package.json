@@ -1,0 +1,8 @@
+{
+  "name": "my-cloudflare-app",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "wrangler dev --local backend/worker.js",
+    "deploy": "wrangler publish backend/worker.js"
+  }
+}
