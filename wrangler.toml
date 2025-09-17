@@ -1,0 +1,19 @@
+name = "cloudflare-app"
+main = "worker/index.js"
+compatibility_date = "2025-01-01"
+
+# Bind Cloudflare D1 (SQL database)
+[[d1_databases]]
+binding = "DB"                 # this will be used in your Worker code as env.DB
+database_name = "cloudflare_app_db"
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" # replace with your actual D1 database ID
+
+# KV storage (optional, for caching or configs)
+[[kv_namespaces]]
+binding = "APP_KV"
+id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+# Durable Objects (optional, if needed later)
+# [[durable_objects.bindings]]
+# name = "MY_OBJECT"
+# class_name = "MyObject"
