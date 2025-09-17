@@ -1,19 +1,20 @@
-name = "cloudflare-app"
+# wrangler.toml (put at project root or backend root depending on deployment)
+name = "agrinetwork-app"
 main = "worker/index.js"
-compatibility_date = "2025-01-01"
+compatibility_date = "2025-09-01"
 
-# Bind Cloudflare D1 (SQL database)
+# D1 binding
 [[d1_databases]]
-binding = "DB"                 # this will be used in your Worker code as env.DB
-database_name = "cloudflare_app_db"
-database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" # replace with your actual D1 database ID
+binding = "DB"
+database_name = "agrinetwork_db"
+database_id = "REPLACE_WITH_YOUR_D1_ID"
 
-# KV storage (optional, for caching or configs)
+# KV binding (for notifications/caches)
 [[kv_namespaces]]
 binding = "APP_KV"
-id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+id = "REPLACE_WITH_YOUR_KV_ID"
 
-# Durable Objects (optional, if needed later)
-# [[durable_objects.bindings]]
-# name = "MY_OBJECT"
-# class_name = "MyObject"
+# R2 binding (optional for images/files)
+[[r2_buckets]]
+binding = "MY_BUCKET"
+bucket_name = "REPLACE_WITH_YOUR_R2_BUCKET_NAME"
