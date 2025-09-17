@@ -1,0 +1,15 @@
+name = "my-cloudflare-app"
+main = "worker.js"
+compatibility_date = "2025-09-16"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "my_app_db"
+
+[[kv_namespaces]]
+binding = "MY_KV"
+id = "your-kv-id"
+
+[[r2_buckets]]
+binding = "MY_BUCKET"
+bucket_name = "my-app-bucket"
