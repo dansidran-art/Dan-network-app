@@ -1,118 +1,85 @@
-import { Hono } from "hono";
-import { jwt } from "hono/jwt";
-import { drizzle } from "drizzle-orm/d1";
-import bcrypt from "bcryptjs";
+// backend/worker.js
+import { Router } from "itty-router";
+import { D1Database } from "@cloudflare/workers-types";
+import * as jose from "jose";
+
+const router = Router();
+
+// JWT secret (generate a secure key!)
+const JWT_SECRET = new TextEncoder().encode("super-secret-key-change-me");
+
+// Signup
+router.post("/api/signup", async (request, env) => {
+  try {
+    const { name, email, password } = await request.json();
+
+    if (!name || !email || !password) {
+      return new Response(JSON.stringify({ error: "Missing fields" }), { status: 400 });
+    }
+
+    const password_hash = await hashPassword(password);
+
+    await env.DB.prepare(
+      "INSERT INTO users (name, email, password_hash) VALUES (?1, ?2, ?3)"
+    ).bind(name, email, password_hash).run();
+
+    return Response.json({ message: "Signup successful" });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+  }
+});
+
+// Login
+router.post("/api/login", async (request, env) => {
+  try {
+    const { email, password } = await request.json();
+
+    if (!email || !password) {
+      return new Response(JSON.stringify({ error: "Missing fields" }), { status: 400 });
+    }
+
+    const row = await env.DB.prepare("SELECT * FROM users WHERE email = ?1")
+      .bind(email)
+      .first();
+
+    if (!row) {
+      return new Response(JSON.stringify({ error: "User not found" }), { status: 404 });
+    }
+
+    const valid = await verifyPassword(password, row.password_hash);
+    if (!valid) {
+      return new Response(JSON.stringify({ error: "Invalid password" }), { status: 401 });
+    }
+
+    // Create JWT
+    const token = await new jose.SignJWT({ id: row.id, email: row.email })
+      .setProtectedHeader({ alg: "HS256" })
+      .setExpirationTime("1h")
+      .sign(JWT_SECRET);
+
+    return Response.json({ message: "Login successful", token });
+  } catch (err) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+  }
+});
+
+// Helper: Hash password
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)));
+}
+
+// Helper: Verify password
+async function verifyPassword(password, hash) {
+  const hashed = await hashPassword(password);
+  return hashed === hash;
+}
+
+// Default route
+router.all("*", () => new Response("Not Found", { status: 404 }));
 
 export default {
-  async fetch(request, env, ctx) {
-    const app = new Hono();
-    const db = drizzle(env.DB);
-
-    // Middleware: JWT Auth
-    const auth = jwt({
-      secret: env.JWT_SECRET,
-    });
-
-    // --- Signup ---
-    app.post("/signup", async (c) => {
-      const { name, email, password } = await c.req.json();
-
-      if (!name || !email || !password) {
-        return c.json({ error: "Missing fields" }, 400);
-      }
-
-      const password_hash = await bcrypt.hash(password, 10);
-
-      try {
-        await db.run(
-          `INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)`,
-          [name, email, password_hash]
-        );
-        return c.json({ message: "Signup successful ✅" });
-      } catch (e) {
-        return c.json({ error: "Email already exists" }, 400);
-      }
-    });
-
-    // --- Login ---
-    app.post("/login", async (c) => {
-      const { email, password } = await c.req.json();
-
-      const user = await db.get(
-        `SELECT * FROM users WHERE email = ? LIMIT 1`,
-        [email]
-      );
-
-      if (!user) return c.json({ error: "User not found" }, 404);
-
-      const valid = await bcrypt.compare(password, user.password_hash);
-      if (!valid) return c.json({ error: "Invalid password" }, 401);
-
-      const token = await new SignJWT({ id: user.id, role: user.role })
-        .setProtectedHeader({ alg: "HS256" })
-        .setExpirationTime("7d")
-        .sign(new TextEncoder().encode(env.JWT_SECRET));
-
-      return c.json({ token, user });
-    });
-
-    // --- Verify KYC ---
-    app.post("/kyc/verify", auth, async (c) => {
-      const user = c.get("jwtPayload");
-
-      await db.run(
-        `UPDATE users SET is_kyc_verified = 1 WHERE id = ?`,
-        [user.id]
-      );
-
-      await db.run(
-        `INSERT INTO subaccounts (user_id, name) VALUES (?, ?)`,
-        [user.id, "Main Account"]
-      );
-
-      return c.json({ message: "KYC verified + subaccount created ✅" });
-    });
-
-    // --- List Product ---
-    app.post("/products", auth, async (c) => {
-      const user = c.get("jwtPayload");
-      const { name, description, price, quantity } = await c.req.json();
-
-      const u = await db.get(`SELECT * FROM users WHERE id = ?`, [user.id]);
-      if (!u.is_kyc_verified) {
-        return c.json({ error: "KYC required" }, 403);
-      }
-
-      await db.run(
-        `INSERT INTO products (user_id, name, description, price, quantity) VALUES (?, ?, ?, ?, ?)`,
-        [user.id, name, description, price, quantity]
-      );
-
-      return c.json({ message: "Product listed ✅" });
-    });
-
-    // --- Create Order ---
-    app.post("/orders", auth, async (c) => {
-      const buyer = c.get("jwtPayload");
-      const { product_id, quantity } = await c.req.json();
-
-      const product = await db.get(
-        `SELECT * FROM products WHERE id = ?`,
-        [product_id]
-      );
-
-      if (!product) return c.json({ error: "Product not found" }, 404);
-
-      const total_amount = product.price * quantity;
-
-      await db.run(
-        `INSERT INTO orders (buyer_id, product_id, quantity, total_amount, escrow_locked) VALUES (?, ?, ?, ?, ?)`,
-        [buyer.id, product_id, quantity, total_amount, 1]
-      );
-
-      return c.json({ message: "Order created & funds locked in escrow ✅" });
-    });
-
-    return app.fetch(request, env, ctx);
-  },
+  fetch: (request, env, ctx) => router.handle(request, env, ctx),
 };
