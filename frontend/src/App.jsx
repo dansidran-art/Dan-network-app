@@ -1,4 +1,4 @@
-import Orders from "./pages/Orders";
+import AdminPanel from "./pages/AdminPanel";
 
 <Routes>
   <Route path="/signup" element={<Signup />} />
@@ -7,5 +7,6 @@ import Orders from "./pages/Orders";
   <Route path="/dashboard" element={<Dashboard />} />
   <Route path="/marketplace" element={<Marketplace />} />
   <Route path="/orders" element={<Orders />} />
+  <Route path="/admin" element={<AdminPanel />} />
   <Route path="/" element={<h1>Welcome to AgriNetwork 🚜</h1>} />
 </Routes>
