@@ -1,0 +1,126 @@
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+const Products = ({ token }) => {
+  const [products, setProducts] = useState([]);
+  const [form, setForm] = useState({ name: "", description: "", price: "", quantity: "" });
+  const [message, setMessage] = useState("");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    fetch("/api/products", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setProducts(data))
+      .catch(() => setMessage("⚠️ Failed to load products."));
+  }, [token, navigate]);
+
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    setMessage("");
+
+    const res = await fetch("/api/products", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(form),
+    });
+
+    if (res.ok) {
+      const newProduct = await res.json();
+      setProducts([...products, newProduct]);
+      setForm({ name: "", description: "", price: "", quantity: "" });
+      setMessage("✅ Product added successfully!");
+    } else {
+      const err = await res.json();
+      setMessage(`❌ ${err.message || "Failed to add product."}`);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <h1 className="text-2xl font-bold mb-4">My Products</h1>
+
+      {message && <p className="mb-4 text-red-500">{message}</p>}
+
+      {/* Add Product Form */}
+      <form
+        onSubmit={handleAdd}
+        className="mb-6 p-4 bg-white shadow rounded space-y-4"
+      >
+        <h2 className="font-semibold">Add New Product</h2>
+        <input
+          type="text"
+          name="name"
+          placeholder="Product Name"
+          value={form.name}
+          onChange={handleChange}
+          required
+          className="w-full border p-2 rounded"
+        />
+        <textarea
+          name="description"
+          placeholder="Description"
+          value={form.description}
+          onChange={handleChange}
+          className="w-full border p-2 rounded"
+        />
+        <input
+          type="number"
+          name="price"
+          placeholder="Price"
+          value={form.price}
+          onChange={handleChange}
+          required
+          className="w-full border p-2 rounded"
+        />
+        <input
+          type="number"
+          name="quantity"
+          placeholder="Quantity"
+          value={form.quantity}
+          onChange={handleChange}
+          required
+          className="w-full border p-2 rounded"
+        />
+        <button
+          type="submit"
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        >
+          Add Product
+        </button>
+      </form>
+
+      {/* Product List */}
+      <div className="grid gap-4">
+        {products.length === 0 ? (
+          <p>No products yet.</p>
+        ) : (
+          products.map((p) => (
+            <div key={p.id} className="p-4 bg-white shadow rounded">
+              <h3 className="font-bold">{p.name}</h3>
+              <p>{p.description}</p>
+              <p>
+                <span className="font-semibold">Price:</span> ${p.price}
+              </p>
+              <p>
+                <span className="font-semibold">Quantity:</span> {p.quantity}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Products;
