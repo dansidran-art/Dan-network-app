@@ -18,3 +18,6 @@ function App() {
 }
 
 export default App;
+{user?.role === "admin" && (
+  <Link to="/admin" className="ml-4 text-red-600">Admin Panel</Link>
+)}
