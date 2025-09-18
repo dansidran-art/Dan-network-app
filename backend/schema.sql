@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS orders (
   FOREIGN KEY (product_id) REFERENCES products(id)
 );
 
--- Notifications (small feed, we also store in KV but D1 table helps if you prefer SQL)
+-- Notifications
 CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
@@ -55,3 +55,8 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+-- ✅ Insert a default admin user if none exists
+INSERT INTO users (name, email, password_hash, role, is_kyc_verified)
+SELECT 'Super Admin', 'admin@example.com', '$2a$10$abcdefghijklmnopqrstuv', 'admin', 1
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE role = 'admin');
