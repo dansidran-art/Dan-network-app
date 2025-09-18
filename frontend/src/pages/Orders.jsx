@@ -124,3 +124,51 @@ const Orders = () => {
 };
 
 export default Orders;
+{/* Orders List */}
+<div className="grid gap-4">
+  {orders.length === 0 ? (
+    <p>No orders yet.</p>
+  ) : (
+    orders.map((o) => (
+      <div key={o.id} className="p-4 bg-white shadow rounded">
+        <h3 className="font-bold">Order #{o.id}</h3>
+        <p><span className="font-semibold">Product:</span> {o.product_name}</p>
+        <p><span className="font-semibold">Quantity:</span> {o.quantity}</p>
+        <p><span className="font-semibold">Total:</span> ${o.total_amount}</p>
+        <p>
+          <span className="font-semibold">Status:</span>{" "}
+          <span className="text-blue-600">{o.status}</span>
+        </p>
+
+        {/* Action buttons */}
+        {o.status === "created" && (
+          <button
+            onClick={() => updateStatus(o.id, "shipped")}
+            className="mt-2 px-3 py-1 bg-green-600 text-white rounded"
+          >
+            Mark as Shipped (Seller)
+          </button>
+        )}
+
+        {o.status === "shipped" && (
+          <button
+            onClick={() => updateStatus(o.id, "delivered")}
+            className="mt-2 px-3 py-1 bg-blue-600 text-white rounded"
+          >
+            Confirm Delivery (Buyer)
+          </button>
+        )}
+
+        {/* Admin-only: dispute/refund */}
+        {o.status !== "refunded" && (
+          <button
+            onClick={() => updateStatus(o.id, "refunded")}
+            className="mt-2 ml-2 px-3 py-1 bg-red-600 text-white rounded"
+          >
+            Refund (Admin)
+          </button>
+        )}
+      </div>
+    ))
+  )}
+</div>
