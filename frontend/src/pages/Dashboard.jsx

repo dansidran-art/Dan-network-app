@@ -1,0 +1,69 @@
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+const Dashboard = ({ token }) => {
+  const [user, setUser] = useState(null);
+  const [message, setMessage] = useState("");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    fetch("/api/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setUser(data))
+      .catch(() => setMessage("⚠️ Failed to load user data."));
+  }, [token, navigate]);
+
+  if (!user) {
+    return <p className="text-center mt-10">Loading...</p>;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <h1 className="text-2xl font-bold mb-4">Welcome, {user.name}</h1>
+      <p>Email: {user.email}</p>
+      <p>Status: {user.is_kyc_verified ? "✅ Verified" : "❌ Not Verified"}</p>
+
+      {!user.is_kyc_verified && (
+        <div className="mt-4 p-4 bg-yellow-100 rounded">
+          <p className="mb-2">
+            You must complete KYC before listing products.
+          </p>
+          <button
+            className="px-4 py-2 bg-blue-600 text-white rounded"
+            onClick={() => navigate("/kyc")}
+          >
+            Complete KYC
+          </button>
+        </div>
+      )}
+
+      {user.is_kyc_verified && (
+        <div className="mt-6 space-y-4">
+          <button
+            onClick={() => navigate("/products")}
+            className="w-full py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            List / Manage Products
+          </button>
+
+          <button
+            onClick={() => navigate("/orders")}
+            className="w-full py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+          >
+            View Orders
+          </button>
+        </div>
+      )}
+
+      {message && <p className="mt-4 text-red-500">{message}</p>}
+    </div>
+  );
+};
+
+export default Dashboard;
