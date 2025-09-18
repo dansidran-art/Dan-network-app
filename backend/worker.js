@@ -170,3 +170,12 @@ function fileToBase64(file) {
 }
 
 export default app;
+router.get("/api/me", async (req, env, ctx) => {
+  try {
+    const user = await getUserFromToken(req, env); // helper already exists
+    if (!user) return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
+    return Response.json(user);
+  } catch (err) {
+    return new Response(JSON.stringify({ message: "Server error" }), { status: 500 });
+  }
+});
