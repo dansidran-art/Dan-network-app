@@ -1,0 +1,144 @@
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+
+const AdminPanel = () => {
+  const [users, setUsers] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const token = localStorage.getItem("token");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+
+    const fetchData = async () => {
+      try {
+        const res = await fetch("/api/admin/overview", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUsers(data.users);
+          setOrders(data.orders);
+          setProducts(data.products);
+        } else {
+          console.error("Not authorized or failed to fetch admin data");
+          navigate("/login");
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [token, navigate]);
+
+  const handleVerifyUser = async (id) => {
+    try {
+      const res = await fetch(`/api/admin/verify-user/${id}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setUsers(users.map((u) => (u.id === id ? updated : u)));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (loading) return <p className="p-6">Loading admin panel...</p>;
+
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-6">👑 Admin Panel</h1>
+
+      {/* Users Section */}
+      <section className="mb-10">
+        <h2 className="text-2xl font-semibold mb-4">Users</h2>
+        {users.length === 0 ? (
+          <p>No users found</p>
+        ) : (
+          <table className="w-full border">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="p-2 border">ID</th>
+                <th className="p-2 border">Name</th>
+                <th className="p-2 border">Email</th>
+                <th className="p-2 border">Role</th>
+                <th className="p-2 border">KYC</th>
+                <th className="p-2 border">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td className="p-2 border">{u.id}</td>
+                  <td className="p-2 border">{u.name}</td>
+                  <td className="p-2 border">{u.email}</td>
+                  <td className="p-2 border">{u.role}</td>
+                  <td className="p-2 border">
+                    {u.is_kyc_verified ? "✅ Verified" : "❌ Not Verified"}
+                  </td>
+                  <td className="p-2 border">
+                    {!u.is_kyc_verified && (
+                      <button
+                        onClick={() => handleVerifyUser(u.id)}
+                        className="bg-green-600 text-white px-3 py-1 rounded"
+                      >
+                        Verify
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* Products Section */}
+      <section className="mb-10">
+        <h2 className="text-2xl font-semibold mb-4">Products</h2>
+        {products.length === 0 ? (
+          <p>No products listed</p>
+        ) : (
+          <ul className="space-y-2">
+            {products.map((p) => (
+              <li key={p.id} className="border p-3 rounded bg-white shadow">
+                {p.name} – ₦{p.price} (by User {p.user_id})
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Orders Section */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Orders</h2>
+        {orders.length === 0 ? (
+          <p>No orders yet</p>
+        ) : (
+          <ul className="space-y-2">
+            {orders.map((o) => (
+              <li key={o.id} className="border p-3 rounded bg-white shadow">
+                Order #{o.id} – Product {o.product_id} – Buyer {o.buyer_id} –{" "}
+                <strong>{o.status}</strong>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+};
+
+export default AdminPanel;
