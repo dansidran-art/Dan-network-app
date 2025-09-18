@@ -132,3 +132,11 @@ router.post("/api/admin/orders/:id/resolve", async (req, res) => {
   await env.DB.prepare("UPDATE orders SET status = 'resolved' WHERE id = ?").bind(id).run();
   res.json({ message: "Order dispute resolved" });
 });
+{
+  "user": {
+    "id": 1,
+    "name": "Admin User",
+    "email": "admin@example.com",
+    "role": "admin"
+  }
+}
