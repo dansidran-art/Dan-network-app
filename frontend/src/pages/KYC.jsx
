@@ -1,18 +1,12 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-const KYC = () => {
+const KYC = ({ token }) => {
   const [idFile, setIdFile] = useState(null);
   const [selfieFile, setSelfieFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-
-  const toBase64 = (file) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result.split(",")[1]);
-      reader.onerror = (error) => reject(error);
-    });
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,73 +15,71 @@ const KYC = () => {
       return;
     }
 
+    const formData = new FormData();
+    formData.append("id", idFile);
+    formData.append("selfie", selfieFile);
+
     setLoading(true);
-    setMessage("");
-
     try {
-      const idBase64 = await toBase64(idFile);
-      const selfieBase64 = await toBase64(selfieFile);
-
-      const token = localStorage.getItem("token"); // from login
-      const email = localStorage.getItem("email");
-
       const res = await fetch("/api/kyc/verify", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          email,
-          idImageBase64: idBase64,
-          selfieBase64: selfieBase64,
-        }),
+        body: formData,
       });
 
       const data = await res.json();
       if (res.ok) {
-        setMessage(`✅ ${data.message}`);
+        setMessage("✅ KYC verified successfully!");
+        setTimeout(() => navigate("/dashboard"), 1500);
       } else {
-        setMessage(`❌ ${data.message || data.error}`);
+        setMessage(`❌ Verification failed: ${data.message}`);
       }
     } catch (err) {
-      setMessage(`Error: ${err.message}`);
-    } finally {
-      setLoading(false);
+      setMessage("❌ Server error. Try again.");
     }
+    setLoading(false);
   };
 
   return (
-    <div className="container-p py-6">
-      <h2 className="text-xl font-bold mb-4">KYC Verification</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block font-medium">Upload ID</label>
+    <div className="flex justify-center items-center min-h-screen bg-gray-100">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white p-6 rounded shadow-md w-full max-w-md space-y-4"
+      >
+        <h2 className="text-xl font-bold text-center">KYC Verification</h2>
+
+        <label className="block">
+          Upload Government ID:
           <input
             type="file"
             accept="image/*"
             onChange={(e) => setIdFile(e.target.files[0])}
-            className="mt-1 block"
+            className="mt-1 block w-full"
           />
-        </div>
-        <div>
-          <label className="block font-medium">Upload Selfie</label>
+        </label>
+
+        <label className="block">
+          Upload Selfie:
           <input
             type="file"
             accept="image/*"
             onChange={(e) => setSelfieFile(e.target.files[0])}
-            className="mt-1 block"
+            className="mt-1 block w-full"
           />
-        </div>
+        </label>
+
         <button
           type="submit"
           disabled={loading}
-          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+          className="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
         >
-          {loading ? "Verifying..." : "Submit KYC"}
+          {loading ? "Verifying..." : "Submit"}
         </button>
+
+        {message && <p className="text-center mt-2">{message}</p>}
       </form>
-      {message && <p className="mt-4">{message}</p>}
     </div>
   );
 };
