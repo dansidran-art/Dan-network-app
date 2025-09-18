@@ -62,3 +62,39 @@ router.post("/api/orders", async (req, env) => {
     status: "created",
   });
 });
+// Update order status (seller, buyer, or admin)
+router.post("/api/orders/:id/status", async (req, env) => {
+  const user = await getUserFromToken(req, env);
+  if (!user) return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
+
+  const { id } = req.params;
+  const { new_status } = await req.json();
+
+  // Get order details
+  const { results } = await env.DB.prepare(
+    "SELECT o.*, p.user_id as seller_id FROM orders o JOIN products p ON o.product_id = p.id WHERE o.id = ?"
+  ).bind(id).all();
+
+  if (results.length === 0) {
+    return new Response(JSON.stringify({ message: "Order not found" }), { status: 404 });
+  }
+
+  const order = results[0];
+
+  // Permission logic
+  if (user.role === "admin") {
+    // Admin can set any status
+  } else if (user.id === order.seller_id && new_status === "shipped") {
+    // Seller can only mark as shipped
+  } else if (user.id === order.buyer_id && new_status === "delivered") {
+    // Buyer can confirm delivery
+  } else {
+    return new Response(JSON.stringify({ message: "Not allowed to change this order status" }), { status: 403 });
+  }
+
+  await env.DB.prepare(
+    "UPDATE orders SET status = ? WHERE id = ?"
+  ).bind(new_status, id).run();
+
+  return Response.json({ success: true, message: `Order updated to ${new_status}` });
+});
