@@ -1,142 +1,155 @@
-// Marketplace (all available products, from verified users)
-router.get("/api/marketplace", async (req, env) => {
-  const { results } = await env.DB.prepare(
-    `SELECT p.*, u.name as seller_name 
-     FROM products p 
-     JOIN users u ON p.user_id = u.id 
-     WHERE u.is_kyc_verified = 1 AND p.quantity > 0`
-  ).all();
-  return Response.json(results);
-});
+import { Router } from "itty-router";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
-// Get all orders for logged-in user
-router.get("/api/orders", async (req, env) => {
-  const user = await getUserFromToken(req, env);
-  if (!user) return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
+const router = Router();
+const JWT_SECRET = "supersecret123"; // ⚠️ move to .env in production
 
-  const { results } = await env.DB.prepare(
-    `SELECT o.*, p.name as product_name 
-     FROM orders o 
-     JOIN products p ON o.product_id = p.id 
-     WHERE o.buyer_id = ?`
-  ).bind(user.id).all();
+// Middleware: extract user from JWT
+async function auth(req, res, next) {
+  try {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) return res.status(401).json({ error: "Missing token" });
 
-  return Response.json(results);
-});
+    const token = authHeader.replace("Bearer ", "");
+    const decoded = jwt.verify(token, JWT_SECRET);
 
-// Place an order
-router.post("/api/orders", async (req, env) => {
-  const user = await getUserFromToken(req, env);
-  if (!user) return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
-
-  const { product_id, quantity } = await req.json();
-  const { results } = await env.DB.prepare(
-    "SELECT * FROM products WHERE id = ?"
-  ).bind(product_id).all();
-
-  if (results.length === 0) {
-    return new Response(JSON.stringify({ message: "Product not found" }), { status: 404 });
-  }
-
-  const product = results[0];
-  if (product.quantity < quantity) {
-    return new Response(JSON.stringify({ message: "Not enough stock" }), { status: 400 });
-  }
-
-  const total_amount = product.price * quantity;
-
-  const { lastInsertRowid } = await env.DB.prepare(
-    "INSERT INTO orders (buyer_id, product_id, quantity, total_amount, status, escrow_locked) VALUES (?, ?, ?, ?, ?, ?)"
-  ).bind(user.id, product_id, quantity, total_amount, "created", 1).run();
-
-  // Reduce product stock
-  await env.DB.prepare(
-    "UPDATE products SET quantity = quantity - ? WHERE id = ?"
-  ).bind(quantity, product_id).run();
-
-  return Response.json({
-    id: lastInsertRowid,
-    product_name: product.name,
-    quantity,
-    total_amount,
-    status: "created",
-  });
-});
-// Update order status (seller, buyer, or admin)
-router.post("/api/orders/:id/status", async (req, env) => {
-  const user = await getUserFromToken(req, env);
-  if (!user) return new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
-
-  const { id } = req.params;
-  const { new_status } = await req.json();
-
-  // Get order details
-  const { results } = await env.DB.prepare(
-    "SELECT o.*, p.user_id as seller_id FROM orders o JOIN products p ON o.product_id = p.id WHERE o.id = ?"
-  ).bind(id).all();
-
-  if (results.length === 0) {
-    return new Response(JSON.stringify({ message: "Order not found" }), { status: 404 });
-  }
-
-  const order = results[0];
-
-  // Permission logic
-  if (user.role === "admin") {
-    // Admin can set any status
-  } else if (user.id === order.seller_id && new_status === "shipped") {
-    // Seller can only mark as shipped
-  } else if (user.id === order.buyer_id && new_status === "delivered") {
-    // Buyer can confirm delivery
-  } else {
-    return new Response(JSON.stringify({ message: "Not allowed to change this order status" }), { status: 403 });
-  }
-
-  await env.DB.prepare(
-    "UPDATE orders SET status = ? WHERE id = ?"
-  ).bind(new_status, id).run();
-
-  return Response.json({ success: true, message: `Order updated to ${new_status}` });
-});
-// --- Admin-only routes ---
-router.get("/api/admin/users", async (req, res) => {
-  const { role } = req.user; // assuming JWT middleware sets req.user
-  if (role !== "admin") return res.status(403).json({ message: "Forbidden" });
-
-  const users = await env.DB.prepare("SELECT id, name, email, role, is_kyc_verified FROM users").all();
-  res.json(users.results);
-});
-
-router.post("/api/admin/block-user/:id", async (req, res) => {
-  const { role } = req.user;
-  if (role !== "admin") return res.status(403).json({ message: "Forbidden" });
-
-  const { id } = req.params;
-  await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
-  res.json({ message: "User blocked/removed" });
-});
-
-router.get("/api/admin/products", async (req, res) => {
-  const { role } = req.user;
-  if (role !== "admin") return res.status(403).json({ message: "Forbidden" });
-
-  const products = await env.DB.prepare("SELECT * FROM products").all();
-  res.json(products.results);
-});
-
-router.post("/api/admin/orders/:id/resolve", async (req, res) => {
-  const { role } = req.user;
-  if (role !== "admin") return res.status(403).json({ message: "Forbidden" });
-
-  const { id } = req.params;
-  await env.DB.prepare("UPDATE orders SET status = 'resolved' WHERE id = ?").bind(id).run();
-  res.json({ message: "Order dispute resolved" });
-});
-{
-  "user": {
-    "id": 1,
-    "name": "Admin User",
-    "email": "admin@example.com",
-    "role": "admin"
+    req.user = decoded;
+    return next();
+  } catch {
+    return res.status(401).json({ error: "Invalid token" });
   }
 }
+
+// Health check
+router.get("/", () => new Response("✅ Backend Worker running"));
+
+// ---------------- USERS ----------------
+
+// Signup
+router.post("/api/signup", async (req) => {
+  const { name, email, password } = await req.json();
+
+  const hashed = await bcrypt.hash(password, 10);
+
+  const stmt = db.prepare(
+    "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)"
+  );
+  stmt.run(name, email, hashed, "user");
+
+  return Response.json({ success: true, message: "User registered" });
+});
+
+// Login (updated with role)
+router.post("/api/login", async (req) => {
+  try {
+    const { email, password } = await req.json();
+
+    const stmt = db.prepare("SELECT * FROM users WHERE email = ?");
+    const user = stmt.get(email);
+
+    if (!user) {
+      return Response.json({ error: "User not found" }, { status: 400 });
+    }
+
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    if (!isValid) {
+      return Response.json({ error: "Invalid credentials" }, { status: 400 });
+    }
+
+    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+      expiresIn: "7d",
+    });
+
+    return Response.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        is_kyc_verified: user.is_kyc_verified,
+      },
+    });
+  } catch (err) {
+    return Response.json({ error: "Login failed", details: err.message }, { status: 500 });
+  }
+});
+
+// ---------------- KYC (stub with Gemini AI later) ----------------
+router.post("/api/kyc", auth, async (req) => {
+  const { documentImage, selfieImage } = await req.json();
+
+  // TODO: Call Google Gemini API to verify ID + face
+  // For now, auto-pass
+  const stmt = db.prepare("UPDATE users SET is_kyc_verified = 1 WHERE id = ?");
+  stmt.run(req.user.id);
+
+  return Response.json({ success: true, message: "KYC verified" });
+});
+
+// ---------------- PRODUCTS ----------------
+router.post("/api/products", auth, async (req) => {
+  const { name, description, price, quantity } = await req.json();
+
+  const stmt = db.prepare(
+    "INSERT INTO products (user_id, name, description, price, quantity) VALUES (?, ?, ?, ?, ?)"
+  );
+  stmt.run(req.user.id, name, description, price, quantity);
+
+  return Response.json({ success: true, message: "Product listed" });
+});
+
+router.get("/api/products", async () => {
+  const stmt = db.prepare("SELECT * FROM products ORDER BY created_at DESC");
+  const products = stmt.all();
+  return Response.json(products);
+});
+
+// ---------------- ORDERS ----------------
+router.post("/api/orders", auth, async (req) => {
+  const { product_id, quantity } = await req.json();
+
+  const product = db.prepare("SELECT * FROM products WHERE id = ?").get(product_id);
+  if (!product) return Response.json({ error: "Product not found" }, { status: 404 });
+
+  const total = product.price * quantity;
+
+  const stmt = db.prepare(
+    "INSERT INTO orders (buyer_id, product_id, quantity, total_amount, status, escrow_locked) VALUES (?, ?, ?, ?, ?, ?)"
+  );
+  stmt.run(req.user.id, product_id, quantity, total, "created", 1);
+
+  return Response.json({ success: true, message: "Order created in escrow" });
+});
+
+router.get("/api/orders", auth, async (req) => {
+  const orders = db.prepare("SELECT * FROM orders WHERE buyer_id = ?").all(req.user.id);
+  return Response.json(orders);
+});
+
+// ---------------- ADMIN PANEL ----------------
+router.get("/api/admin/users", auth, async (req) => {
+  if (req.user.role !== "admin") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const users = db.prepare("SELECT id, name, email, role, is_kyc_verified FROM users").all();
+  return Response.json(users);
+});
+
+router.get("/api/admin/orders", auth, async (req) => {
+  if (req.user.role !== "admin") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const orders = db.prepare("SELECT * FROM orders").all();
+  return Response.json(orders);
+});
+
+// 404
+router.all("*", () => new Response("Not found", { status: 404 }));
+
+export default {
+  fetch: (req, env, ctx) => router.handle(req, env, ctx),
+};
