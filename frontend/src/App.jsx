@@ -1,4 +1,4 @@
-import Marketplace from "./pages/Marketplace";
+import Orders from "./pages/Orders";
 
 <Routes>
   <Route path="/signup" element={<Signup />} />
@@ -6,5 +6,6 @@ import Marketplace from "./pages/Marketplace";
   <Route path="/kyc" element={<KYC />} />
   <Route path="/dashboard" element={<Dashboard />} />
   <Route path="/marketplace" element={<Marketplace />} />
+  <Route path="/orders" element={<Orders />} />
   <Route path="/" element={<h1>Welcome to AgriNetwork 🚜</h1>} />
 </Routes>
