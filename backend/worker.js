@@ -98,3 +98,37 @@ router.post("/api/orders/:id/status", async (req, env) => {
 
   return Response.json({ success: true, message: `Order updated to ${new_status}` });
 });
+// --- Admin-only routes ---
+router.get("/api/admin/users", async (req, res) => {
+  const { role } = req.user; // assuming JWT middleware sets req.user
+  if (role !== "admin") return res.status(403).json({ message: "Forbidden" });
+
+  const users = await env.DB.prepare("SELECT id, name, email, role, is_kyc_verified FROM users").all();
+  res.json(users.results);
+});
+
+router.post("/api/admin/block-user/:id", async (req, res) => {
+  const { role } = req.user;
+  if (role !== "admin") return res.status(403).json({ message: "Forbidden" });
+
+  const { id } = req.params;
+  await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
+  res.json({ message: "User blocked/removed" });
+});
+
+router.get("/api/admin/products", async (req, res) => {
+  const { role } = req.user;
+  if (role !== "admin") return res.status(403).json({ message: "Forbidden" });
+
+  const products = await env.DB.prepare("SELECT * FROM products").all();
+  res.json(products.results);
+});
+
+router.post("/api/admin/orders/:id/resolve", async (req, res) => {
+  const { role } = req.user;
+  if (role !== "admin") return res.status(403).json({ message: "Forbidden" });
+
+  const { id } = req.params;
+  await env.DB.prepare("UPDATE orders SET status = 'resolved' WHERE id = ?").bind(id).run();
+  res.json({ message: "Order dispute resolved" });
+});
