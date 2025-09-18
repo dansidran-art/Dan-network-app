@@ -1,12 +1,20 @@
-import AdminPanel from "./pages/AdminPanel";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Signup from "./pages/Signup";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import KYC from "./pages/KYC";
 
-<Routes>
-  <Route path="/signup" element={<Signup />} />
-  <Route path="/login" element={<Login />} />
-  <Route path="/kyc" element={<KYC />} />
-  <Route path="/dashboard" element={<Dashboard />} />
-  <Route path="/marketplace" element={<Marketplace />} />
-  <Route path="/orders" element={<Orders />} />
-  <Route path="/admin" element={<AdminPanel />} />
-  <Route path="/" element={<h1>Welcome to AgriNetwork 🚜</h1>} />
-</Routes>
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Signup />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/kyc" element={<KYC />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
