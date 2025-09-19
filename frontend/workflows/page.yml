@@ -1,0 +1,39 @@
+name: One-time Admin Cleanup
+
+on:
+  workflow_call:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Delete admin files
+        run: |
+          if [ -f "src/AdminPanel.jsx" ]; then
+            rm "src/AdminPanel.jsx"
+            echo "✅ Deleted src/AdminPanel.jsx"
+          fi
+
+          if [ -d "src/admin" ]; then
+            rm -rf "src/admin"
+            echo "✅ Deleted src/admin folder"
+          fi
+
+      - name: Delete this workflow file
+        run: |
+          if [ -f "frontend/workflows/page.yml" ]; then
+            rm "frontend/workflows/page.yml"
+            echo "🗑️ Deleted workflow file itself"
+          fi
+
+      - name: Commit changes
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add -A
+          git commit -m "One-time cleanup: removed admin files and workflow" || echo "No changes"
+          git push
