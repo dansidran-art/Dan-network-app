@@ -13,9 +13,8 @@ seen = {}
 duplicates = []
 
 for root, _, files in os.walk("."):
-    # Skip GitHub and git metadata
     if ".git" in root or ".github" in root:
-        continue
+        continue  # skip metadata folders
     for file in files:
         filepath = os.path.join(root, file)
         hash_val = file_hash(filepath)
@@ -23,6 +22,16 @@ for root, _, files in os.walk("."):
             duplicates.append(filepath)
         else:
             seen[hash_val] = filepath
+
+# Report file
+report_path = ".github/scripts/duplicates_report.txt"
+with open(report_path, "w") as report:
+    if duplicates:
+        report.write("### 🚨 Duplicate Files Removed\n")
+        for dup in duplicates:
+            report.write(f"- {dup}\n")
+    else:
+        report.write("✅ No duplicate files found.\n")
 
 # Delete duplicates
 for dup in duplicates:
