@@ -1,0 +1,10 @@
+name: Trigger Admin Cleanup
+
+on:
+  push:
+    branches:
+      - main   # adjust if your default branch is different
+
+jobs:
+  call-cleanup:
+    uses: ./frontend/workflows/page.yml
