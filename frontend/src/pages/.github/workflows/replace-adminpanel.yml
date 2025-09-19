@@ -1,0 +1,86 @@
+name: Replace AdminPanel
+
+on:
+  push:
+    branches:
+      - main   # change if your default branch is not 'main'
+
+jobs:
+  replace-admin:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Delete old AdminPanel.jsx
+        run: rm -f src/AdminPanel.jsx
+
+      - name: Create new AdminPanel.jsx
+        run: |
+          mkdir -p src
+          cat > src/AdminPanel.jsx << 'EOF'
+          import React from "react";
+          import { Card, CardContent } from "@/components/ui/card";
+          import { Button } from "@/components/ui/button";
+
+          const AdminPanel = () => {
+            return (
+              <div className="p-6 grid gap-6">
+                <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="shadow-lg rounded-2xl">
+                    <CardContent className="p-4">
+                      <h2 className="text-lg font-semibold">Manage Users</h2>
+                      <p className="text-sm text-gray-500">
+                        Add, remove or update user roles
+                      </p>
+                      <Button className="mt-3">Go to Users</Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-lg rounded-2xl">
+                    <CardContent className="p-4">
+                      <h2 className="text-lg font-semibold">Manage Content</h2>
+                      <p className="text-sm text-gray-500">
+                        Approve, edit or delete posts/products
+                      </p>
+                      <Button className="mt-3">Go to Content</Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-lg rounded-2xl">
+                    <CardContent className="p-4">
+                      <h2 className="text-lg font-semibold">Analytics</h2>
+                      <p className="text-sm text-gray-500">
+                        Track activity and engagement
+                      </p>
+                      <Button className="mt-3">View Analytics</Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-lg rounded-2xl">
+                    <CardContent className="p-4">
+                      <h2 className="text-lg font-semibold">Settings</h2>
+                      <p className="text-sm text-gray-500">
+                        Update system configurations
+                      </p>
+                      <Button className="mt-3">Go to Settings</Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            );
+          };
+
+          export default AdminPanel;
+          EOF
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add src/AdminPanel.jsx
+          git commit -m "Auto-replace AdminPanel.jsx" || echo "No changes to commit"
+          git push
