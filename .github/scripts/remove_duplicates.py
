@@ -1,0 +1,33 @@
+import os
+import hashlib
+
+def file_hash(path, chunk_size=8192):
+    """Return SHA256 hash of a file."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(chunk_size), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+seen = {}
+duplicates = []
+
+for root, _, files in os.walk("."):
+    # Skip GitHub and git metadata
+    if ".git" in root or ".github" in root:
+        continue
+    for file in files:
+        filepath = os.path.join(root, file)
+        hash_val = file_hash(filepath)
+        if hash_val in seen:
+            duplicates.append(filepath)
+        else:
+            seen[hash_val] = filepath
+
+# Delete duplicates
+for dup in duplicates:
+    print(f"Removing duplicate: {dup}")
+    os.remove(dup)
+
+if not duplicates:
+    print("No duplicates found.")
