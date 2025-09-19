@@ -1,0 +1,161 @@
+name: One-Time Replace Admin Panel with Tailwind
+
+on:
+  workflow_dispatch:   # runs only when you trigger it manually
+
+jobs:
+  replace-admin:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      # --- Replace AdminPanel.jsx ---
+      - name: Delete old AdminPanel.jsx
+        run: rm -f src/AdminPanel.jsx
+
+      - name: Create new AdminPanel.jsx
+        run: |
+          mkdir -p src
+          cat > src/AdminPanel.jsx << 'EOF'
+          import React from "react";
+          import { Card, CardContent } from "@/components/ui/card";
+          import { Button } from "@/components/ui/button";
+
+          const AdminPanel = () => {
+            return (
+              <div className="p-6 grid gap-6">
+                <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="shadow-lg rounded-2xl">
+                    <CardContent className="p-4">
+                      <h2 className="text-lg font-semibold">Manage Users</h2>
+                      <p className="text-sm text-gray-500">
+                        Add, remove or update user roles
+                      </p>
+                      <Button className="mt-3">Go to Users</Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-lg rounded-2xl">
+                    <CardContent className="p-4">
+                      <h2 className="text-lg font-semibold">Manage Content</h2>
+                      <p className="text-sm text-gray-500">
+                        Approve, edit or delete posts/products
+                      </p>
+                      <Button className="mt-3">Go to Content</Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-lg rounded-2xl">
+                    <CardContent className="p-4">
+                      <h2 className="text-lg font-semibold">Analytics</h2>
+                      <p className="text-sm text-gray-500">
+                        Track activity and engagement
+                      </p>
+                      <Button className="mt-3">View Analytics</Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="shadow-lg rounded-2xl">
+                    <CardContent className="p-4">
+                      <h2 className="text-lg font-semibold">Settings</h2>
+                      <p className="text-sm text-gray-500">
+                        Update system configurations
+                      </p>
+                      <Button className="mt-3">Go to Settings</Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            );
+          };
+
+          export default AdminPanel;
+          EOF
+
+      # --- Create Navbar.jsx ---
+      - name: Create Navbar.jsx
+        run: |
+          mkdir -p src
+          cat > src/Navbar.jsx << 'EOF'
+          import React from "react";
+          import { Link } from "react-router-dom";
+
+          const Navbar = () => {
+            return (
+              <nav className="flex items-center justify-between bg-gray-800 text-white px-6 py-3">
+                <h1 className="font-bold text-lg">My App</h1>
+                <div className="flex gap-4">
+                  <Link to="/" className="hover:underline">Home</Link>
+                  <Link to="/admin" className="hover:underline">Admin</Link>
+                </div>
+              </nav>
+            );
+          };
+
+          export default Navbar;
+          EOF
+
+      # --- Update App.jsx with Navbar + routing ---
+      - name: Update App.jsx
+        run: |
+          cat > src/App.jsx << 'EOF'
+          import React from "react";
+          import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+          import Navbar from "./Navbar";
+          import AdminPanel from "./AdminPanel";
+          import "./index.css";
+
+          const Home = () => (
+            <div className="p-6">
+              <h1 className="text-2xl font-bold">Home Page</h1>
+              <p className="text-gray-600">Welcome to the app!</p>
+            </div>
+          );
+
+          function App() {
+            return (
+              <Router>
+                <Navbar />
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/admin" element={<AdminPanel />} />
+                </Routes>
+              </Router>
+            );
+          }
+
+          export default App;
+          EOF
+
+      # --- Add Tailwind index.css ---
+      - name: Create Tailwind index.css
+        run: |
+          mkdir -p src
+          cat > src/index.css << 'EOF'
+          @tailwind base;
+          @tailwind components;
+          @tailwind utilities;
+          EOF
+
+      # --- Commit changes ---
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add src/AdminPanel.jsx src/App.jsx src/Navbar.jsx src/index.css
+          git commit -m "One-time setup: AdminPanel, Navbar, App.jsx, Tailwind index.css" || echo "No changes to commit"
+          git push
+
+      # --- Delete this workflow file after running once ---
+      - name: Delete this workflow (self-cleanup)
+        run: |
+          rm -f .github/workflows/replace-adminpanel.yml
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add .github/workflows/replace-adminpanel.yml || true
+          git commit -m "Remove one-time workflow after execution" || echo "No workflow file to remove"
+          git push
